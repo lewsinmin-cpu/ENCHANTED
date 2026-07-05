@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Patient Journey Challenge</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #eef3f5;
+    --panel: #ffffff;
+    --text: #16232a;
+    --muted: #5b6b73;
+    --primary: #0f9b8e;
+    --primary-dark: #0b7a70;
+    --accent: #1d6fd1;
+    --warn: #e08a1e;
+    --danger: #d1493f;
+    --good: #2e9e5b;
+    --border: #dbe4e7;
+    --chip-bg: #f1f6f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1517;
+      --panel: #182225;
+      --text: #eef3f5;
+      --muted: #9fb0b6;
+      --primary: #2bc4b3;
+      --primary-dark: #1f9d90;
+      --accent: #5b9dee;
+      --warn: #f0a94e;
+      --danger: #f0776c;
+      --good: #55c684;
+      --border: #2a373b;
+      --chip-bg: #1f2b2f;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body { display: flex; justify-content: center; padding: 20px 14px 60px; }
+  #app { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .panel.phase-before { border-top: 4px solid var(--warn); }
+  .panel.phase-after { border-top: 4px solid var(--primary); }
+  h1 { font-size: 1.5rem; margin: 0 0 8px; }
+  h2 { font-size: 1.2rem; margin: 0 0 10px; }
+  h3 { font-size: 1rem; margin: 0 0 6px; }
+  p { line-height: 1.5; margin: 0 0 10px; }
+  .muted { color: var(--muted); }
+  .center { text-align: center; }
+  .small { font-size: 0.85rem; }
+
+  #hud {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 0.8rem;
+  }
+  #hud .stat { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 54px; }
+  #hud .stat .val { font-size: 1.02rem; font-weight: 700; color: var(--primary); }
+  #hud .stat .lbl { color: var(--muted); font-size: 0.68rem; }
+
+  .progress-wrap { width: 100%; height: 8px; background: var(--chip-bg); border-radius: 999px; overflow: hidden; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.4s ease; }
+  .progress-bar.before { background: linear-gradient(90deg, var(--warn), #f0c060); }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+
+  button { font-family: inherit; cursor: pointer; border: none; }
+  .btn-primary {
+    display: inline-block;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 22px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-secondary {
+    display: inline-block;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 22px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* Role glossary */
+  .role-list { list-style: none; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
+  .role-item { display: flex; gap: 10px; align-items: flex-start; background: var(--chip-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .role-item .icon { font-size: 1.3rem; flex-shrink: 0; }
+  .role-item .role-name { font-weight: 700; font-size: 0.88rem; }
+  .role-item .role-desc { font-size: 0.8rem; color: var(--muted); }
+
+  /* Phase badge */
+  .phase-badge { display: inline-block; font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; border-radius: 999px; padding: 4px 12px; margin-bottom: 10px; }
+  .phase-badge.before { background: rgba(224,138,30,0.18); color: var(--warn); }
+  .phase-badge.after { background: rgba(15,155,142,0.18); color: var(--primary); }
+
+  .round-label {
+    display: inline-block;
+    background: rgba(29,111,209,0.15);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    margin-right: 6px;
+  }
+
+  .reveal-list { list-style: none; padding: 0; margin: 0 0 16px; }
+  .reveal-list li { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 0.92rem; background: var(--chip-bg); }
+  .reveal-list.bad li { color: var(--danger); }
+  .reveal-list.good li { color: var(--good); }
+
+  /* Patient card */
+  .patient-card-v2 { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: var(--chip-bg); margin-bottom: 16px; }
+  .avatar-circle {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: rgba(29,111,209,0.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.9rem; position: relative; flex-shrink: 0;
+  }
+  .avatar-circle .badge {
+    position: absolute; bottom: -4px; right: -4px; font-size: 1rem;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 50%; padding: 2px 3px;
+  }
+  .patient-card-v2 .info { flex: 1; }
+  .patient-card-v2 .name { font-weight: 700; font-size: 1.08rem; }
+  .patient-card-v2 .age { color: var(--muted); font-size: 0.82rem; margin-bottom: 8px; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { background: rgba(29,111,209,0.12); color: var(--accent); border-radius: 999px; padding: 4px 10px; font-size: 0.76rem; }
+  .callout {
+    border: 1px solid var(--border);
+    background: var(--chip-bg);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    margin-bottom: 14px;
+  }
+  .callout.warn { border-color: var(--warn); background: rgba(224,138,30,0.1); }
+
+  /* AI card */
+  .ai-card { border: 1px dashed var(--primary); background: rgba(15,155,142,0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .ai-card .ai-title { font-weight: 700; color: var(--primary); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 0.95rem; }
+  .confidence-track { height: 8px; background: var(--chip-bg); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+  .confidence-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+  .confidence-label { font-size: 0.75rem; color: var(--muted); }
+
+  /* Icon grid buttons */
+  .icon-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .icon-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .icon-grid.cols-1 { grid-template-columns: 1fr; }
+  .icon-grid.cols-1 .icon-card { flex-direction: row; justify-content: flex-start; text-align: left; padding: 12px 16px; }
+  .icon-card {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: var(--chip-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 8px; font-size: 0.8rem; text-align: center;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .icon-card:hover { background: rgba(15,155,142,0.12); border-color: var(--primary); }
+  .icon-card:active { transform: scale(0.97); }
+  .icon-card .big-icon { font-size: 1.7rem; }
+  .icon-card.static { cursor: default; opacity: 0.85; }
+
+  /* MDT */
+  .mdt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+  .mdt-person {
+    text-align: center; background: var(--chip-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 6px; opacity: 0.4;
+    transition: opacity 0.25s ease, border-color 0.25s ease; font-size: 0.76rem;
+  }
+  .mdt-person.active { opacity: 1; border-color: var(--primary); }
+  .mdt-person .icon { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+
+  /* Feedback banner */
+  .feedback { border-radius: 12px; padding: 16px; margin-bottom: 14px; border: 1px solid; }
+  .feedback.bad { background: rgba(209,73,63,0.1); border-color: var(--danger); }
+  .feedback.good { background: rgba(46,158,91,0.1); border-color: var(--good); }
+  .feedback.neutral { background: rgba(224,138,30,0.1); border-color: var(--warn); }
+  .feedback .title { font-weight: 700; margin-bottom: 4px; }
+  .delta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .delta-chip { font-size: 0.78rem; font-weight: 700; border-radius: 999px; padding: 4px 10px; }
+  .delta-chip.days { background: rgba(224,138,30,0.18); color: var(--warn); }
+  .delta-chip.rework { background: rgba(209,73,63,0.18); color: var(--danger); }
+  .delta-chip.mdt { background: rgba(29,111,209,0.18); color: var(--accent); }
+  .delta-chip.waste { background: rgba(224,138,30,0.18); color: var(--warn); }
+  .delta-chip.sat-pos { background: rgba(46,158,91,0.18); color: var(--good); }
+  .delta-chip.sat-neg { background: rgba(209,73,63,0.18); color: var(--danger); }
+
+  /* Dashboard */
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+  .stat-box { background: var(--chip-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 6px; text-align: center; }
+  .stat-box .num { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+  .stat-box .lbl { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+  /* Compare bars */
+  .compare-row { margin-bottom: 16px; }
+  .compare-row .metric-name { font-size: 0.85rem; margin-bottom: 6px; font-weight: 600; }
+  .bar-line { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .bar-line .bar-label { width: 60px; text-align: right; font-size: 0.72rem; color: var(--muted); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 16px; background: var(--chip-bg); border-radius: 999px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+  .bar-fill.phase-before-fill { background: var(--warn); }
+  .bar-fill.phase-after-fill { background: var(--primary); }
+  .bar-line .bar-val { width: 46px; text-align: right; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+  .impact-banner {
+    text-align: center;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    font-weight: 700;
+  }
+
+  @media (max-width: 420px) {
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .icon-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var ROLE_GLOSSARY = [
+    { icon: "🩺", role: "NTFGH Doctor", desc: "Assesses patients and flags who may be suitable for JCH transfer." },
+    { icon: "📋", role: "Case Manager", desc: "Actively pulls patients who meet the transfer criteria." },
+    { icon: "🔄", role: "Referral Team", desc: "Handles the logistics of actually getting the patient transferred." },
+    { icon: "🏥", role: "JCH Doctor", desc: "Reassesses every patient within 48 hours of arrival at JCH." },
+    { icon: "👥", role: "MDT Team", desc: "Doctors, medical officers, ward nurses, case managers, therapists (PT/OT/ST) and medical social workers, planning care together." }
+  ];
+
+  var MDT_STAKEHOLDERS = [
+    { icon: "🩺", name: "Doctor" },
+    { icon: "⚕️", name: "Medical Officer" },
+    { icon: "👩‍⚕️", name: "Ward Nurse" },
+    { icon: "📋", name: "Case Manager" },
+    { icon: "🏃", name: "Therapy (PT/OT/ST)" },
+    { icon: "💼", name: "MSW" }
+  ];
+
+  var TRANSFER_OPTIONS = [
+    { key: "A", icon: "🚑", label: "Transfer Now" },
+    { key: "B", icon: "🔍", label: "Request Review" },
+    { key: "C", icon: "🛌", label: "Keep in NTFGH" }
+  ];
+
+  var REFERRAL_BUNDLE = ["Physiotherapy", "Occupational Therapy", "Medical Social Worker (MSW)"];
+  var REFERRAL_ICONS = { "Physiotherapy": "🏃", "Occupational Therapy": "🖐️", "Medical Social Worker (MSW)": "💼" };
+
+  var DEST_ICONS = {
+    "Home with Support": "🏠",
+    "Community Hospital Follow Up": "🏨",
+    "Nursing Home": "🏥",
+    "Transitional Care Facility": "🏘️",
+    "Active Ageing Centre": "🧓",
+    "Assisted Living": "🛋️",
+    "Home Care Services": "🚑"
+  };
+  var DEST_ALL = Object.keys(DEST_ICONS);
+
+  var PATIENTS = [
+    {
+      id: "tan", name: "Mr Tan", age: 78, avatar: "🧓", conditionIcon: "🧠",
+      condition: "Stroke recovery",
+      tags: ["Medically stable", "Requires rehabilitation", "Lives alone"],
+      complexity: "low",
+      before: {
+        transferCorrect: "A",
+        transferCorrectMsg: "Clear enough call — medically stable with a clear rehab need is exactly JCH's specialty.",
+        transferWrongMsg: "JCH team requests clarification. Transfer criteria don't clearly cover this case.",
+        eddRangeText: "Somewhere between Day 5 and Day 14 — nobody's quite sure yet.",
+        destinationChallenge: "Caregiver availability is unclear — he lives alone with no listed next-of-kin nearby."
+      },
+      after: {
+        aiTransferConfidence: 91,
+        aiTransferReason: "Stable vitals, clear rehab goal, no acute issues flagged.",
+        aiEdd: 7, aiEddConfidence: 85,
+        aiDestinationReason: "No caregiver at home — paid home care support is recommended."
+      },
+      referralTrulyNeeded: ["Physiotherapy"],
+      destinationCorrect: "Home Care Services",
+      destinationAfterShortlist: ["Home Care Services", "Home with Support", "Nursing Home"]
+    },
+    {
+      id: "farah", name: "Mdm Farah", age: 90, avatar: "👵", conditionIcon: "🧩",
+      condition: "Advanced dementia",
+      tags: ["Bedbound", "Foreign domestic worker caregiver"],
+      complexity: "high",
+      before: {
+        transferCorrect: "B",
+        transferCorrectMsg: "Reasonable — her complex care needs deserved a closer look before committing to a transfer.",
+        transferWrongMsg: "JCH team requests clarification. Her complex needs weren't reviewed before this decision.",
+        eddRangeText: "Somewhere between Day 10 and Day 30 — highly unpredictable.",
+        destinationChallenge: "Her caregiver (a domestic helper) isn't trained for bedbound care; family is overseas."
+      },
+      after: {
+        aiTransferConfidence: 88,
+        aiTransferReason: "Complex needs identified early — care planning should begin at JCH regardless of a longer NTFGH stay.",
+        aiEdd: 14, aiEddConfidence: 80,
+        aiDestinationReason: "Caregiver untrained for bedbound care — long-term nursing care is recommended."
+      },
+      referralTrulyNeeded: ["Medical Social Worker (MSW)"],
+      destinationCorrect: "Nursing Home",
+      destinationAfterShortlist: ["Nursing Home", "Transitional Care Facility", "Home with Support"]
+    }
+  ];
+
+  var ROUND_NAMES = ["Transfer Decision", "Referral", "MDT Discussion", "Discharge Planning"];
+
+  var state = null;
+  var timerInterval = null;
+
+  function freshState() {
+    return {
+      screen: "intro",
+      act: "before",
+      patientIndex: 0,
+      round: 1,
+      stats: {
+        before: { days: 0, rework: 0, mdtHours: 0, waste: 0, satisfaction: 100, discharges: 0 },
+        after: { days: 0, rework: 0, mdtHours: 0, waste: 0, satisfaction: 100, discharges: 0 }
+      },
+      elapsedSeconds: 0,
+      startTime: null
+    };
+  }
+
+  function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+  function curStats() { return state.stats[state.act]; }
+  function addDays(n) { curStats().days += n; }
+  function addRework(n) { curStats().rework += n; }
+  function addMdtHours(n) { curStats().mdtHours += n; }
+  function addWaste(n) { curStats().waste += n; }
+  function addSatisfaction(n) { curStats().satisfaction = clamp(curStats().satisfaction + n, 0, 100); }
+
+  function el(html) {
+    var d = document.createElement("div");
+    d.innerHTML = html.trim();
+    return d.firstElementChild;
+  }
+
+  function render() {
+    var app = document.getElementById("app");
+    app.innerHTML = "";
+    if (state.screen === "intro") app.appendChild(renderIntro());
+    else if (state.screen === "before-banner") app.appendChild(renderActBanner("before"));
+    else if (state.screen === "after-banner") app.appendChild(renderActBanner("after"));
+    else if (state.screen === "playing") app.appendChild(renderPlaying());
+    else if (state.screen === "act-before-summary") app.appendChild(renderActSummary());
+    else if (state.screen === "final-dashboard") app.appendChild(renderFinalDashboard());
+  }
+
+  function startTimer() {
+    state.startTime = Date.now() - state.elapsedSeconds * 1000;
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(function () {
+      state.elapsedSeconds = Math.floor((Date.now() - state.startTime) / 1000);
+      var t = document.getElementById("elapsed-timer");
+      if (t) t.textContent = formatTime(state.elapsedSeconds);
+    }, 1000);
+  }
+  function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+  function formatTime(sec) {
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+  }
+
+  // ---------- INTRO ----------
+  function renderIntro() {
+    var wrap = el('<div></div>');
+    wrap.appendChild(el(
+      '<div class="panel">' +
+        '<div class="round-label">Workshop Simulation</div>' +
+        '<h1>The Patient Journey Challenge</h1>' +
+        '<p>You are the <strong>Patient Flow Coordinator</strong> for NTFGH → JCH transfers. ' +
+        'You\'ll run the <strong>same 2 patients</strong> through today\'s process, then through an AI-assisted version — and see the difference side by side.</p>' +
+        '<p class="muted small">Takes about 10 minutes. No login needed. One tap per decision.</p>' +
+      '</div>'
+    ));
+    wrap.appendChild(el(
+      '<div class="panel">' +
+        '<h2>Who\'s who</h2>' +
+        '<ul class="role-list">' +
+          ROLE_GLOSSARY.map(function (r) {
+            return '<li class="role-item"><span class="icon">' + r.icon + '</span><div><div class="role-name">' + r.role + '</div><div class="role-desc">' + r.desc + '</div></div></li>';
+          }).join("") +
+        '</ul>' +
+        '<div class="center"><button class="btn-primary" id="start-btn">Start →</button></div>' +
+      '</div>'
+    ));
+    setTimeout(function () {
+      document.getElementById("start-btn").onclick = function () {
+        state = freshState();
+        state.screen = "before-banner";
+        render();
+      };
+    }, 0);
+    return wrap;
+  }
+
+  // ---------- ACT BANNERS ----------
+  function renderActBanner(actName) {
+    var wrap = el('<div></div>');
+    var isBefore = actName === "before";
+    var panel = el(
+      '<div class="panel phase-' + actName + '">' +
+        '<div class="phase-badge ' + actName + '">Phase ' + (isBefore ? "1" : "2") + '</div>' +
+        '<h1>' + (isBefore ? "BEFORE: Today\'s Process" : "AFTER: With AI Assistance") + '</h1>' +
+        (isBefore
+          ? '<p>No AI support yet. Transfer criteria are unclear, every patient gets the same default referrals and full MDT discussion, and discharge planning only starts once the patient is medically ready.</p>' +
+            '<p class="muted small">You\'ll run <strong>Mr Tan</strong> and <strong>Mdm Farah</strong> through this process.</p>'
+          : '<p>Same 2 patients, same clinical needs — but now AI helps identify transfer-ready patients, target referrals, prioritise MDT time, and plan discharge from Day 1.</p>' +
+            '<p class="muted small">Watch how the same cases play out differently.</p>') +
+        '<div class="center"><button class="btn-primary" id="begin-act-btn">Begin Phase ' + (isBefore ? "1" : "2") + ' →</button></div>' +
+      '</div>'
+    );
+    wrap.appendChild(panel);
+    setTimeout(function () {
+      document.getElementById("begin-act-btn").onclick = function () {
+        state.act = actName;
+        state.patientIndex = 0;
+        state.round = 1;
+        state.screen = "playing";
+        startTimer();
+        render();
+      };
+    }, 0);
+    return wrap;
+  }
+
+  // ---------- HUD + PROGRESS ----------
+  function hudHtml() {
+    var s = curStats();
+    return (
+      '<div id="hud">' +
+        '<div class="stat"><div class="val">' + s.days + '</div><div class="lbl">Days</div></div>' +
+        '<div class="stat"><div class="val">' + s.rework + '</div><div class="lbl">Rework</div></div>' +
+        '<div class="stat"><div class="val">' + s.mdtHours + '</div><div class="lbl">MDT hrs</div></div>' +
+        '<div class="stat"><div class="val">' + s.waste + '</div><div class="lbl">Wasted refs</div></div>' +
+        '<div class="stat"><div class="val timer" id="elapsed-timer">' + formatTime(state.elapsedSeconds) + '</div><div class="lbl">Elapsed</div></div>' +
+      '</div>'
+    );
+  }
+
+  function progressHtml() {
+    var totalSteps = PATIENTS.length * 4;
+    var doneSteps = state.patientIndex * 4 + (state.round - 1);
+    var pct = Math.round((doneSteps / totalSteps) * 100);
+    return (
+      '<div class="panel" style="padding:14px 18px;">' +
+        '<span class="phase-badge ' + state.act + '">' + (state.act === "before" ? "Phase 1 · Before" : "Phase 2 · After") + '</span>' +
+        '<div class="progress-wrap"><div class="progress-bar ' + state.act + '" style="width:' + pct + '%;"></div></div>' +
+        '<div class="progress-label"><span>Patient ' + (state.patientIndex + 1) + ' of ' + PATIENTS.length + '</span><span>' + ROUND_NAMES[state.round - 1] + '</span></div>' +
+      '</div>'
+    );
+  }
+
+  function shellStart() {
+    var app = document.getElementById("app");
+    app.innerHTML = "";
+    app.insertAdjacentHTML("beforeend", hudHtml());
+    app.insertAdjacentHTML("beforeend", progressHtml());
+    return app;
+  }
+
+  function patientCardHtml(patient, extra) {
+    return (
+      '<div class="patient-card-v2">' +
+        '<div class="avatar-circle">' + patient.avatar + '<span class="badge">' + patient.conditionIcon + '</span></div>' +
+        '<div class="info">' +
+          '<div class="name">' + patient.name + '</div>' +
+          '<div class="age">' + patient.age + ' years old · ' + patient.condition + '</div>' +
+          '<div class="tag-list">' + patient.tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join("") + '</div>' +
+        '</div>' +
+      '</div>' + (extra || '')
+    );
+  }
+
+  function iconGridHtml(idPrefix, items, cols) {
+    var colsClass = cols === 3 ? ' cols-3' : (cols === 1 ? ' cols-1' : '');
+    return '<div class="icon-grid' + colsClass + '">' +
+      items.map(function (item, i) {
+        return '<button class="icon-card" id="' + idPrefix + '-' + i + '">' +
+          '<span class="big-icon">' + item.icon + '</span><span>' + item.label + '</span>' +
+        '</button>';
+      }).join("") +
+      '</div>';
+  }
+
+  // ---------- PLAYING DISPATCH ----------
+  function renderPlaying() {
+    var wrap = el('<div></div>');
+    wrap.insertAdjacentHTML("beforeend", hudHtml());
+    wrap.insertAdjacentHTML("beforeend", progressHtml());
+    var patient = PATIENTS[state.patientIndex];
+    var panel;
+    if (state.round === 1) panel = state.act === "before" ? renderTransferBefore(patient) : renderTransferAfter(patient);
+    else if (state.round === 2) panel = state.act === "before" ? renderReferralBefore(patient) : renderReferralAfter(patient);
+    else if (state.round === 3) panel = state.act === "before" ? renderMdtBefore(patient) : renderMdtAfter(patient);
+    else panel = state.act === "before" ? renderDischargeBefore(patient) : renderDischargeAfter(patient);
+    wrap.appendChild(panel);
+    return wrap;
+  }
+
+  function goToRound(n) { state.round = n; render(); }
+
+  function afterRound4(patient) {
+    var s = curStats();
+    if (state.patientIndex >= PATIENTS.length - 1) {
+      if (state.act === "before") {
+        stopTimer();
+        state.screen = "act-before-summary";
+      } else {
+        stopTimer();
+        state.screen = "final-dashboard";
+      }
+    } else {
+      state.patientIndex += 1;
+      state.round = 1;
+    }
+    render();
+  }
+
+  // ---------- ROUND 1: TRANSFER ----------
+  function renderTransferBefore(patient) {
+    var panel = el(
+      '<div class="panel phase-before">' +
+        '<div class="round-label">Round 1 · Transfer Decision</div>' +
+        patientCardHtml(patient) +
+        '<h3>What do you decide?</h3>' +
+        iconGridHtml("r1", TRANSFER_OPTIONS, 3) +
+      '</div>'
+    );
+    setTimeout(function () {
+      TRANSFER_OPTIONS.forEach(function (opt, i) {
+        document.getElementById("r1-" + i).onclick = function () { handleTransferBefore(patient, opt.key); };
+      });
+    }, 0);
+    return panel;
+  }
+
+  function handleTransferBefore(patient, key) {
+    var correct = key === patient.before.transferCorrect;
+    var feedback;
+    if (correct) {
+      addSatisfaction(5);
+      feedback = { type: "good", title: "Transfer processed.", msg: patient.before.transferCorrectMsg, deltas: [] };
+    } else {
+      addDays(2); addRework(1); addSatisfaction(-5);
+      feedback = { type: "bad", title: "JCH team requests clarification.", msg: patient.before.transferWrongMsg, deltas: [
+        { cls: "days", text: "+2 days" }, { cls: "rework", text: "+1 rework" }, { cls: "sat-neg", text: "-5% satisfaction" }
+      ] };
+    }
+    showFeedback(feedback, function () { goToRound(2); });
+  }
+
+  function renderTransferAfter(patient) {
+    var a = patient.after;
+    var panel = el(
+      '<div class="panel phase-after">' +
+        '<div class="round-label">Round 1 · Transfer Decision</div>' +
+        patientCardHtml(patient) +
+        '<div class="ai-card">' +
+          '<div class="ai-title">🤖 AI Recommendation: Transfer to JCH</div>' +
+          '<div class="confidence-track"><div class="confidence-fill" style="width:' + a.aiTransferConfidence + '%;"></div></div>' +
+          '<div class="confidence-label">' + a.aiTransferConfidence + '% match confidence</div>' +
+          '<p class="small" style="margin-top:8px;">' + a.aiTransferReason + '</p>' +
+        '</div>' +
+        '<div class="btn-row">' +
+          '<button class="btn-primary" id="endorse-btn">✅ Endorse AI Recommendation</button>' +
+          '<button class="btn-secondary" id="manual-btn">🔍 Request Manual Review Instead</button>' +
+        '</div>' +
+      '</div>'
+    );
+    setTimeout(function () {
+      document.getElementById("endorse-btn").onclick = function () {
+        addSatisfaction(5);
+        showFeedback({ type: "good", title: "Endorsed in seconds.", msg: "The clinical team confirms the AI's read — no back-and-forth needed.", deltas: [] }, function () { goToRound(2); });
+      };
+      document.getElementById("manual-btn").onclick = function () {
+        addDays(2);
+        showFeedback({ type: "neutral", title: "Reassessed manually.", msg: "Skipping the recommendation means redoing the full manual assessment — same as before AI.", deltas: [{ cls: "days", text: "+2 days" }] }, function () { goToRound(2); });
+      };
+    }, 0);
+    return panel;
+  }
+
+  // ---------- ROUND 2: REFERRAL ----------
+  function renderReferralBefore(patient) {
+    var panel = el(
+      '<div class="panel phase-before">' +
+        '<div class="round-label">Round 2 · Referral</div>' +
+        patientCardHtml(patient) +
+        '<p class="callout warn">Standard protocol: every patient is referred to <strong>all three</strong> — Physiotherapy, Occupational Therapy, and Medical Social Work — regardless of actual need.</p>' +
+        '<div class="icon-grid cols-3">' +
+          REFERRAL_BUNDLE.map(function (r) {
+            return '<div class="icon-card static"><span class="big-icon">' + REFERRAL_ICONS[r] + '</span><span>' + r + '</span></div>';
+          }).join("") +
+        '</div>' +
+        '<div class="btn-row"><button class="btn-primary" id="send-bundle-btn">📤 Send Standard Referral Bundle</button></div>' +
+      '</div>'
+    );
+    setTimeout(function () {
+      document.getElementById("send-bundle-btn").onclick = function () { handleReferralBefore(patient); };
+    }, 0);
+    return panel;
+  }
+
+  function handleReferralBefore(patient) {
+    var needed = patient.referralTrulyNeeded;
+    var wasted = REFERRAL_BUNDLE.filter(function (r) { return needed.indexOf(r) === -1; });
+    addDays(1); addWaste(wasted.length); addSatisfaction(-3);
+    showFeedback({
+      type: "neutral",
+      title: "Referral bundle sent — but not all of it was needed.",
+      msg: "Only <strong>" + needed.join(", ") + "</strong> was actually necessary. <strong>" + wasted.join(" and ") + "</strong> time was spent on a patient who didn't need it.",
+      deltas: [{ cls: "days", text: "+1 day" }, { cls: "waste", text: "+" + wasted.length + " wasted referrals" }, { cls: "sat-neg", text: "-3% satisfaction" }]
+    }, function () { goToRound(3); });
+  }
+
+  function renderReferralAfter(patient) {
+    var needed = patient.referralTrulyNeeded;
+    var panel = el(
+      '<div class="panel phase-after">' +
+        '<div class="round-label">Round 2 · Referral</div>' +
+        patientCardHtml(patient) +
+        '<div class="ai-card">' +
+          '<div class="ai-title">🤖 AI-Suggested Referral</div>' +
+          '<div class="icon-grid cols-3">' +
+            needed.map(function (r) { return '<div class="icon-card static"><span class="big-icon">' + REFERRAL_ICONS[r] + '</span><span>' + r + '</span></div>'; }).join("") +
+          '</div>' +
+        '</div>' +
+        '<div class="btn-row"><button class="btn-primary" id="send-targeted-btn">📤 Send Targeted Referral</button></div>' +
+      '</div>'
+    );
+    setTimeout(function () {
+      document.getElementById("send-targeted-btn").onclick = function () {
+        addSatisfaction(5);
+        showFeedback({ type: "good", title: "Sent — no wasted time.", msg: "The referral matches exactly what this patient needs.", deltas: [{ cls: "sat-pos", text: "+5% satisfaction" }] }, function () { goToRound(3); });
+      };
+    }, 0);
+    return panel;
+  }
+
+  // ---------- ROUND 3: MDT ----------
+  function playMdtAnimation(title, cont) {
+    var app = shellStart();
+    var panel = el(
+      '<div class="panel">' +
+        '<div class="round-label">Round 3 · MDT Discussion</div>' +
+        '<h3>' + title + '</h3>' +
+        '<div class="mdt-grid" id="mdt-grid">' +
+          MDT_STAKEHOLDERS.map(function (p, i) { return '<div class="mdt-person" id="mdt-p-' + i + '"><span class="icon">' + p.icon + '</span>' + p.name + '</div>'; }).join("") +
+        '</div>' +
+      '</div>'
+    );
+    app.appendChild(panel);
+    var i = 0;
+    var stepper = setInterval(function () {
+      var node = document.getElementById("mdt-p-" + i);
+      if (node) node.classList.add("active");
+      i++;
+      if (i >= MDT_STAKEHOLDERS.length) { clearInterval(stepper); setTimeout(cont, 500); }
+    }, 350);
+  }
+
+  function renderMdtBefore(patient) {
+    var panel = el(
+      '<div class="panel phase-before">' +
+        '<div class="round-label">Round 3 · MDT Discussion</div>' +
+        patientCardHtml(patient) +
+        '<p class="callout warn">Every patient gets the same full team discussion — whether it\'s needed or not.</p>' +
+        '<div class="btn-row"><button class="btn-primary" id="convene-btn">📅 Convene Standard MDT</button></div>' +
+      '</div>'
+    );
+    setTimeout(function () {
+      document.getElementById("convene-btn").onclick = function () {
+        playMdtAnimation("Convening the full team…", function () {
+          addDays(2); addMdtHours(2);
+          showFeedback({
+            type: "neutral",
+            title: "Consensus reached after the standard discussion.",
+            msg: "Discussed for the same slot as every other patient — needed or not.",
+            deltas: [{ cls: "days", text: "+2 days" }, { cls: "mdt", text: "+2 MDT hrs" }]
+          }, function () { goToRound(4); });
+        });
+      };
+    }, 0);
+    return panel;
+  }
+
+  function renderMdtAfter(patient) {
+    var low = patient.complexity === "low";
+    var panel = el(
+      '<div class="panel phase-after">' +
+        '<div class="round-label">Round 3 · MDT Discussion</div>' +
+        patientCardHtml(patient) +
+        '<div class="ai-card">' +
+          '<div class="ai-title">🤖 AI Priority Assessment</div>' +
+          '<p class="small">' + (low ? "Low complexity — flagged for a quick review instead of a full meeting." : "High complexity — full MDT genuinely recommended.") + '</p>' +
+        '</div>' +
+        '<div class="btn-row">' +
+          '<button class="btn-primary" id="mdt-after-btn">' + (low ? "⚡ Proceed with Quick Review (5 min)" : "📅 Convene Full MDT (AI-Flagged Priority)") + '</button>' +
+        '</div>' +
+      '</div>'
+    );
+    setTimeout(function () {
+      document.getElementById("mdt-after-btn").onclick = function () {
+        if (low) {
+          addMdtHours(0.5); addSatisfaction(5);
+          showFeedback({ type: "good", title: "Resolved in minutes.", msg: "Low-complexity case, cleared without pulling the whole team together.", deltas: [{ cls: "mdt", text: "+0.5 MDT hrs" }] }, function () { goToRound(4); });
+        } else {
+          playMdtAnimation("Convening the full team (AI-flagged priority case)…", function () {
+            addDays(2); addMdtHours(2);
+            showFeedback({
+              type: "good",
+              title: "Time well spent.",
+              msg: "This case genuinely needed the full team's input — and AI made sure it got prioritised instead of waiting in line.",
+              deltas: [{ cls: "days", text: "+2 days" }, { cls: "mdt", text: "+2 MDT hrs" }]
+            }, function () { goToRound(4); });
+          });
+        }
+      };
+    }, 0);
+    return panel;
+  }
+
+  // ---------- ROUND 4: DISCHARGE ----------
+  function renderDischargeBefore(patient) {
+    var b = patient.before;
+    var panel = el(
+      '<div class="panel phase-before">' +
+        '<div class="round-label">Round 4 · Discharge Planning</div>' +
+        patientCardHtml(patient) +
+        '<p class="callout warn"><strong>Estimated Discharge Date:</strong> ' + b.eddRangeText + '<br/>Planning only starts now that he/she is medically ready.</p>' +
+        '<p class="small"><strong>Challenge:</strong> ' + b.destinationChallenge + '</p>' +
+        '<h3>Where does this patient go next?</h3>' +
+        iconGridHtml("r4", DEST_ALL.map(function (d) { return { icon: DEST_ICONS[d], label: d, key: d }; }), 2) +
+      '</div>'
+    );
+    setTimeout(function () {
+      DEST_ALL.forEach(function (dest, i) {
+        document.getElementById("r4-" + i).onclick = function () { handleDischargeBefore(patient, dest); };
+      });
+    }, 0);
+    return panel;
+  }
+
+  function handleDischargeBefore(patient, dest) {
+    addDays(2);
+    var feedback;
+    if (dest === patient.destinationCorrect) {
+      curStats().discharges += 1; addSatisfaction(5);
+      feedback = { type: "neutral", title: "Right placement — eventually.", msg: "Planning started late, so it took longer than it should have.", deltas: [{ cls: "days", text: "+2 days" }, { cls: "sat-pos", text: "+5% satisfaction" }] };
+    } else {
+      addDays(3); addRework(1); addSatisfaction(-15);
+      feedback = { type: "bad", title: "Placement unsuitable.", msg: "Application rejected. Readmission risk increased.", deltas: [{ cls: "days", text: "+5 days" }, { cls: "rework", text: "+1 rework" }, { cls: "sat-neg", text: "-15% satisfaction" }] };
+    }
+    showFeedback(feedback, function () { afterRound4(patient); });
+  }
+
+  function renderDischargeAfter(patient) {
+    var a = patient.after;
+    var panel = el(
+      '<div class="panel phase-after">' +
+        '<div class="round-label">Round 4 · Discharge Planning</div>' +
+        patientCardHtml(patient) +
+        '<div class="ai-card">' +
+          '<div class="ai-title">🤖 AI-Estimated Discharge Date (set Day 1)</div>' +
+          '<div class="confidence-track"><div class="confidence-fill" style="width:' + a.aiEddConfidence + '%;"></div></div>' +
+          '<div class="confidence-label">Day ' + a.aiEdd + ' · ' + a.aiEddConfidence + '% confidence</div>' +
+          '<p class="small" style="margin-top:8px;">' + a.aiDestinationReason + '</p>' +
+        '</div>' +
+        '<h3>Confirm the placement:</h3>' +
+        iconGridHtml("r4a", patient.destinationAfterShortlist.map(function (d) { return { icon: DEST_ICONS[d], label: d, key: d }; }), 1) +
+      '</div>'
+    );
+    setTimeout(function () {
+      patient.destinationAfterShortlist.forEach(function (dest, i) {
+        document.getElementById("r4a-" + i).onclick = function () { handleDischargeAfter(patient, dest); };
+      });
+    }, 0);
+    return panel;
+  }
+
+  function handleDischargeAfter(patient, dest) {
+    var feedback;
+    if (dest === patient.destinationCorrect) {
+      curStats().discharges += 1; addSatisfaction(10);
+      feedback = { type: "good", title: "Right-sited from Day 1.", msg: "Planning started on admission — no last-minute scramble.", deltas: [{ cls: "sat-pos", text: "+10% satisfaction" }] };
+    } else {
+      addDays(2); addRework(1); addSatisfaction(-8);
+      feedback = { type: "bad", title: "Placement needs adjustment.", msg: "Not quite the right fit — a quick correction is needed, but it's caught early.", deltas: [{ cls: "days", text: "+2 days" }, { cls: "rework", text: "+1 rework" }, { cls: "sat-neg", text: "-8% satisfaction" }] };
+    }
+    showFeedback(feedback, function () { afterRound4(patient); });
+  }
+
+  // ---------- FEEDBACK ----------
+  function showFeedback(feedback, cont) {
+    var app = shellStart();
+    var deltasHtml = (feedback.deltas || []).map(function (d) { return '<span class="delta-chip ' + d.cls + '">' + d.text + '</span>'; }).join("");
+    var panel = el(
+      '<div class="panel">' +
+        '<div class="feedback ' + feedback.type + '">' +
+          '<div class="title">' + feedback.title + '</div>' +
+          '<div>' + feedback.msg + '</div>' +
+          (deltasHtml ? '<div class="delta-row">' + deltasHtml + '</div>' : '') +
+        '</div>' +
+        '<div class="btn-row"><button class="btn-primary" id="feedback-continue">Continue →</button></div>' +
+      '</div>'
+    );
+    app.appendChild(panel);
+    setTimeout(function () {
+      document.getElementById("feedback-continue").onclick = function () { cont(); };
+    }, 0);
+  }
+
+  // ---------- ACT SUMMARY (BEFORE → AFTER transition) ----------
+  function renderActSummary() {
+    var s = state.stats.before;
+    var wrap = el('<div></div>');
+    wrap.appendChild(el(
+      '<div class="panel phase-before">' +
+        '<div class="phase-badge before">Phase 1 Complete</div>' +
+        '<h1>BEFORE Process — Results</h1>' +
+        '<div class="stat-grid">' +
+          '<div class="stat-box"><div class="num">' + s.days + '</div><div class="lbl">Total Days</div></div>' +
+          '<div class="stat-box"><div class="num">' + s.rework + '</div><div class="lbl">Rework</div></div>' +
+          '<div class="stat-box"><div class="num">' + s.mdtHours + '</div><div class="lbl">MDT Hours</div></div>' +
+          '<div class="stat-box"><div class="num">' + s.waste + '</div><div class="lbl">Wasted Referrals</div></div>' +
+          '<div class="stat-box"><div class="num">' + s.satisfaction + '%</div><div class="lbl">Satisfaction</div></div>' +
+          '<div class="stat-box"><div class="num">' + s.discharges + '/2</div><div class="lbl">Discharges</div></div>' +
+        '</div>' +
+        '<h3>What slowed you down</h3>' +
+        '<ul class="reveal-list bad">' +
+          '<li>❌ Unclear transfer criteria</li>' +
+          '<li>❌ Blanket default referrals waste resources</li>' +
+          '<li>❌ MDT reviews every case equally, regardless of complexity</li>' +
+          '<li>❌ Discharge planning starts late, with incomplete information</li>' +
+        '</ul>' +
+        '<div class="center"><button class="btn-primary" id="to-after-btn">Try the AI-Assisted Version →</button></div>' +
+      '</div>'
+    ));
+    setTimeout(function () {
+      document.getElementById("to-after-btn").onclick = function () { state.screen = "after-banner"; render(); };
+    }, 0);
+    return wrap;
+  }
+
+  // ---------- FINAL DASHBOARD ----------
+  function compareRow(label, before, after, maxVal) {
+    var max = maxVal || Math.max(before, after, 1);
+    return (
+      '<div class="compare-row">' +
+        '<div class="metric-name">' + label + '</div>' +
+        '<div class="bar-line"><span class="bar-label">Before</span><div class="bar-track"><div class="bar-fill phase-before-fill" style="width:' + Math.round(before / max * 100) + '%;"></div></div><span class="bar-val">' + before + '</span></div>' +
+        '<div class="bar-line"><span class="bar-label">After</span><div class="bar-track"><div class="bar-fill phase-after-fill" style="width:' + Math.round(after / max * 100) + '%;"></div></div><span class="bar-val">' + after + '</span></div>' +
+      '</div>'
+    );
+  }
+
+  function renderFinalDashboard() {
+    var b = state.stats.before;
+    var a = state.stats.after;
+    var dayCut = b.days > 0 ? Math.round((1 - a.days / b.days) * 100) : 0;
+    var wrap = el('<div></div>');
+    wrap.appendChild(el(
+      '<div class="panel phase-after">' +
+        '<div class="phase-badge after">Phase 2 Complete</div>' +
+        '<h1>Same Patients, Two Systems</h1>' +
+        '<div class="impact-banner">AI-assisted process cut total days by ' + Math.max(dayCut, 0) + '%</div>' +
+        compareRow("Total Days", b.days, a.days) +
+        compareRow("Rework Events", b.rework, a.rework) +
+        compareRow("MDT Hours", b.mdtHours, a.mdtHours) +
+        compareRow("Wasted Referrals", b.waste, a.waste) +
+        '<div class="stat-grid">' +
+          '<div class="stat-box"><div class="num">' + a.satisfaction + '%</div><div class="lbl">After Satisfaction</div></div>' +
+          '<div class="stat-box"><div class="num">' + b.satisfaction + '%</div><div class="lbl">Before Satisfaction</div></div>' +
+          '<div class="stat-box"><div class="num">' + a.discharges + '/2</div><div class="lbl">After Discharges</div></div>' +
+        '</div>' +
+      '</div>'
+    ));
+    wrap.appendChild(el(
+      '<div class="panel">' +
+        '<div class="phase-badge after">Project ENCHANTED Vision</div>' +
+        '<ul class="reveal-list good">' +
+          '<li>✅ AI automatically identifies transfer-ready patients — clinicians simply endorse</li>' +
+          '<li>✅ Discharge date estimated from Day 1 of admission</li>' +
+          '<li>✅ MDT time prioritised — only complex cases get the full discussion</li>' +
+          '<li>✅ Referrals targeted to actual need, not sent by default</li>' +
+          '<li>✅ Discharge planning starts early, with the right site identified sooner</li>' +
+        '</ul>' +
+        '<div class="center"><button class="btn-primary" id="restart-btn">Play Again</button></div>' +
+      '</div>'
+    ));
+    setTimeout(function () {
+      document.getElementById("restart-btn").onclick = function () {
+        stopTimer();
+        state = freshState();
+        state.screen = "intro";
+        render();
+      };
+    }, 0);
+    return wrap;
+  }
+
+  // ---------- INIT ----------
+  state = freshState();
+  render();
+})();
+</script>
+</body>
+</html>
