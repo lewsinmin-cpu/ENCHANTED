@@ -241,6 +241,9 @@
   @media (max-width: 420px) {
     .stat-grid { grid-template-columns: 1fr 1fr; }
     .icon-grid { grid-template-columns: 1fr 1fr; }
+    .icon-grid.cols-3 { grid-template-columns: 1fr; }
+    .icon-grid.cols-3 .icon-card { flex-direction: row; justify-content: flex-start; text-align: left; padding: 12px 16px; gap: 10px; }
+    .icon-grid.cols-3 .icon-card .big-icon { font-size: 1.4rem; }
     .bed-row { flex-wrap: wrap; }
   }
 </style>
